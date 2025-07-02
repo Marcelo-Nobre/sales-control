@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, TextInput, StyleSheet } from 'react-native';
+import { View, TextInput, StyleSheet, useColorScheme, useWindowDimensions } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
+import Colors from '../constants/Colors';
 
 type SearchBarProps = {
   value: string;
@@ -8,16 +9,44 @@ type SearchBarProps = {
   placeholder?: string;
 };
 
-export default function SearchBar({ value, onChangeText, placeholder }: SearchBarProps) {
+export default function SearchBar({ value, onChangeText, placeholder = 'Buscar...' }: SearchBarProps) {
+  const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
+  const { width } = useWindowDimensions();
+
+  // Calcular tamanhos responsivos
+  const getInputHeight = () => {
+    if (width >= 1200) return 56; // Tablets grandes
+    if (width >= 768) return 48; // Tablets
+    return 44; // Celulares
+  };
+
+  const getFontSize = () => {
+    if (width >= 1200) return 18; // Tablets grandes
+    if (width >= 768) return 16; // Tablets
+    return 16; // Celulares
+  };
+
+  const inputHeight = getInputHeight();
+  const fontSize = getFontSize();
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.card }]}>
+      <FontAwesome name="search" size={16} color={theme.tabIconDefault} style={styles.icon} />
       <TextInput
-        style={styles.input}
-        placeholder={placeholder || 'Pesquisar...'}
+        style={[
+          styles.input,
+          {
+            color: theme.text,
+            fontSize: fontSize,
+            height: inputHeight,
+          }
+        ]}
         value={value}
         onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={theme.tabIconDefault}
       />
-      <FontAwesome name="search" size={20} color="#888" style={styles.icon} />
     </View>
   );
 }
@@ -26,23 +55,24 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 8,
-    paddingHorizontal: 12,
     marginHorizontal: 16,
-    marginVertical: 16,
+    marginVertical: 8,
+    borderRadius: 12,
+    paddingHorizontal: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
-  icon: {
-    marginLeft: 10,
-  },
   input: {
     flex: 1,
-    height: 48,
-    fontSize: 16,
+    marginLeft: 12,
+  },
+  icon: {
+    marginRight: 8,
   },
 });

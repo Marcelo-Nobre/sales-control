@@ -13,21 +13,22 @@ export default function Layout() {
         tabBarActiveTintColor: colors.tint,
         tabBarInactiveTintColor: colors.tabIconDefault,
         tabBarStyle: {
-          backgroundColor: colors.background,
+          backgroundColor: colors.card,
           borderRadius: 20,
           marginHorizontal: 10,
-          marginBottom: 10,
+          marginBottom: 40,
           position: 'absolute',
           height: 60,
           paddingBottom: 5,
-          shadowColor: '#000',
+          shadowColor: colors.text,
           shadowOffset: {
             width: 0,
-            height: 2,
+            height: 3,
           },
-          shadowOpacity: 0.25,
-          shadowRadius: 3.84,
+          shadowOpacity: 0.15,
+          shadowRadius: 6,
           elevation: 5,
+          borderTopWidth: 0,
         },
       }}
     >

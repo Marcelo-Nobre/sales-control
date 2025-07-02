@@ -1,47 +1,131 @@
-import React, { useState, useMemo } from 'react';
-import { FlatList, StyleSheet, SafeAreaView } from 'react-native';
-import ResellerCard from '../../../components/ResellerCard';
-import { getRevendedores } from '../../../lib/data';
-import SearchBar from '../../../components/SearchBar';
-import { Text, View } from '../../../components/Themed'; // Import themed components
+import React, { useEffect, useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import NetInfo from '@react-native-community/netinfo';
+import ResellerListLayout from '../../../components/ResellerListLayout';
+import { getRevendedores, getAllRevendedores, syncWhenOnline, forceRefresh } from '../../../lib/data';
+import { useOfflineSync } from '../../../hooks/useOfflineSync';
+import type { Revendedor } from '../../../lib/data';
+
+const ITEMS_PER_PAGE = 15;
 
 export default function ActiveResellersScreen() {
-    const [searchQuery, setSearchQuery] = useState('');
-    const activeResellers = getRevendedores('ativo');
+    const [activeResellers, setActiveResellers] = useState<Revendedor[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [refreshing, setRefreshing] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [lastSync, setLastSync] = useState<Date | undefined>();
 
-    const filteredResellers = useMemo(() => {
-        return activeResellers.filter((reseller) =>
-            reseller.nome.toLowerCase().includes(searchQuery.toLowerCase())
+    const { isOffline, isSyncing, sync } = useOfflineSync(() => {
+      // Callback chamada quando sincronização é completada
+      setLastSync(new Date());
+    });
+
+    const fetchData = useCallback(async (page: number = 1) => {
+        setLoading(true);
+        try {
+            if (!isOffline) {
+                // Online: usar paginação
+                const data = await getRevendedores('ativo', page);
+                setActiveResellers(data);
+
+                // Lógica corrigida para paginação baseada na API
+                if (data.length === ITEMS_PER_PAGE) {
+                    // Se recebeu exatamente 15 itens, há pelo menos mais uma página
+                    setTotalPages(prev => Math.max(prev, page + 1));
+                } else if (data.length < ITEMS_PER_PAGE) {
+                    // Se recebeu menos de 15 itens, esta é a última página
+                    setTotalPages(page);
+                } else if (data.length === 0 && page > 1) {
+                    // Se recebeu 0 itens e não é a primeira página, a página anterior era a última
+                    setTotalPages(page - 1);
+                }
+            } else {
+                // Offline: buscar todos os dados em cache
+                const allData = await getAllRevendedores('ativo');
+                setActiveResellers(allData);
+                setTotalPages(1);
+            }
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    }, [isOffline]);
+
+    const handlePageChange = useCallback((page: number) => {
+        setCurrentPage(page);
+        fetchData(page);
+    }, [fetchData]);
+
+    // Atualiza quando a tela receber foco (após navegação)
+    useFocusEffect(
+        useCallback(() => {
+            fetchData(currentPage);
+        }, [fetchData, currentPage])
+    );
+
+    const onRefresh = useCallback(async () => {
+        setRefreshing(true);
+        try {
+            await forceRefresh();
+            await fetchData(currentPage);
+            await sync();
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setRefreshing(false);
+        }
+    }, [fetchData, currentPage, sync]);
+
+    if (loading && activeResellers.length === 0) {
+        return (
+            <ResellerListLayout
+                listTitle="Revendedores Ativos"
+                resellers={[]}
+                emptyListIcon="spinner"
+                emptyListMessage="Carregando..."
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                isOffline={isOffline}
+                isSyncing={isSyncing}
+                lastSync={lastSync}
+            />
         );
-    }, [activeResellers, searchQuery]);
+    }
 
-    // Use SafeAreaView for top padding, and Themed.View for background
+    if (error && activeResellers.length === 0) {
+        return (
+            <ResellerListLayout
+                listTitle="Revendedores Ativos"
+                resellers={[]}
+                emptyListIcon="exclamation-triangle"
+                emptyListMessage={`Erro: ${error}`}
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                isOffline={isOffline}
+                isSyncing={isSyncing}
+                lastSync={lastSync}
+            />
+        );
+    }
+
     return (
-        <SafeAreaView style={{ flex: 1 }}>
-            <View style={styles.container}>
-                <Text style={styles.title}>Revendedores Ativos</Text>
-                <SearchBar value={searchQuery} onChangeText={setSearchQuery} placeholder="Buscar revendedor..." />
-
-                <FlatList
-                    data={filteredResellers}
-                    renderItem={({ item }) => <ResellerCard revendedor={item} />}
-                    keyExtractor={(item) => item.id}
-                />
-            </View>
-        </SafeAreaView>
+        <ResellerListLayout
+            listTitle="Revendedores Ativos"
+            resellers={activeResellers}
+            emptyListIcon="check-circle-o"
+            emptyListMessage="Não há revendedores ativos no momento."
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+            loading={loading}
+            isOffline={isOffline}
+            isSyncing={isSyncing}
+            lastSync={lastSync}
+        />
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        // backgroundColor is now handled by Themed.View
-    },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        marginHorizontal: 16,
-        marginBottom: 10,
-        marginTop: 10, // Added margin top for better spacing with SafeAreaView
-    },
-});
